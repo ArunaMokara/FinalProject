@@ -28,6 +28,10 @@ def index():
 
     return template('index', projects=projects)
 
+@app.route('/add_projects_members')
+def add_project_page():
+    return template('add')
+
 # Insert route
 @app.route('/add_project', method='POST')
 def add_project():
@@ -39,14 +43,12 @@ def add_project():
     connection = connect_db()
     cursor = connection.cursor()
 
-    # Insert project into Projects table
     cursor.execute('''
         INSERT INTO Projects (ProjectName, StartDate, EndDate, Budget)
         VALUES (?, ?, ?, ?)
     ''', (project_name, start_date, end_date, budget))
 
     project_id = cursor.lastrowid
-   # Insert project members into ProjectMembers table
     for key in request.forms.keys():
         if key.startswith('EmployeeID_') and request.forms.get(key):
             value = request.forms.get(key)
@@ -61,53 +63,18 @@ def add_project():
                 VALUES (?, ?, ?)
             ''', (project_id, value, role))
 
-
-    # employee_id = request.forms.get('EmployeeID')
-    # role = request.forms.get('role')
-    # # Insert project members into ProjectMembers table
-    # cursor.execute('''
-    #         INSERT INTO ProjectMembers (ProjectID, EmployeeID, Role)
-    #         VALUES (?, ?, ?)
-    #     ''', (project_id, employee_id, role))
-
     connection.commit()
     connection.close()
 
     return index()
 
-# Read route - View details of a specific project
-@app.route('/project/<project_id>')
-def view_project(project_id):
-    connection = connect_db()
-    cursor = connection.cursor()
-
-    # Fetch project details with its members
-    cursor.execute('''
-        SELECT Projects.ProjectID, ProjectName, StartDate, EndDate, Budget, 
-               GROUP_CONCAT(EmployeeID || ': ' || Role, ', ') AS Members
-        FROM Projects
-        LEFT JOIN ProjectMembers ON Projects.ProjectID = ProjectMembers.ProjectID
-        WHERE Projects.ProjectID = ?
-        GROUP BY Projects.ProjectID
-    ''', (project_id,))
-
-    project = cursor.fetchone()
-
-    connection.close()
-
-    return template('view_project', project=project)
-
 # Update route - Update details of a specific project
-@app.route('/edit_project/<project_id>', method='GET')
+@app.route('/update_project/<project_id>', method='GET')
 def edit_project_form(project_id):
     connection = connect_db()
     cursor = connection.cursor()
-
-    # Fetch project details
     cursor.execute('SELECT * FROM Projects WHERE ProjectID = ?', (project_id,))
     project = cursor.fetchone()
-
-    # Fetch project members
     cursor.execute('''
         SELECT EmployeeID, Role FROM ProjectMembers
         WHERE ProjectID = ?
@@ -116,9 +83,9 @@ def edit_project_form(project_id):
 
     connection.close()
 
-    return template('edit_project', project=project, project_members=project_members)
+    return template('update_project', project=project, project_members=project_members)
 
-@app.route('/edit_project/<project_id>', method='POST')
+@app.route('/update_project/<project_id>', method='POST')
 def edit_project(project_id):
     project_name = request.forms.get('project_name')
     start_date = request.forms.get('start_date')
@@ -128,17 +95,14 @@ def edit_project(project_id):
     connection = connect_db()
     cursor = connection.cursor()
 
-    # Update project details
     cursor.execute('''
         UPDATE Projects
         SET ProjectName = ?, StartDate = ?, EndDate = ?, Budget = ?
         WHERE ProjectID = ?
     ''', (project_name, start_date, end_date, budget, project_id))
 
-    # Delete existing project members
     cursor.execute('DELETE FROM ProjectMembers WHERE ProjectID = ?', (project_id,))
 
-    # Insert updated project members into ProjectMembers table
     for key in request.forms.keys():
         if key.startswith('EmployeeID_') and request.forms.get(key):
             value = request.forms.get(key)
@@ -161,8 +125,6 @@ def edit_project(project_id):
 def delete_project(project_id):
     connection = connect_db()
     cursor = connection.cursor()
-
-    # Delete project and associated members
     cursor.execute('DELETE FROM Projects WHERE ProjectID = ?', (project_id,))
     cursor.execute('DELETE FROM ProjectMembers WHERE ProjectID = ?', (project_id,))
 
@@ -171,6 +133,5 @@ def delete_project(project_id):
 
     redirect('/')
 
-# Run the Bottle app
 if __name__ == '__main__':
     app.run(host='localhost', port=8080, debug=True)
